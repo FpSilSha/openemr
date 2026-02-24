@@ -19,7 +19,7 @@ APPROVAL_TTL_HOURS = 24
 
 
 def _get_store(request: Request) -> SessionStore:
-    store = getattr(request.app.state, "session_store", None)
+    store: SessionStore | None = getattr(request.app.state, "session_store", None)
     if store is None:
         raise HTTPException(status_code=503, detail="Session store not available")
     return store
