@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Phase 1] - 2026-02-24
+
+MVP Core — Clinical AI Agent
+
+### Added
+- `agent/app/config.py` — Pydantic Settings module loaded from `.env` ([c3fd541b](https://github.com/FpSilSha/openemr/commit/c3fd541b6))
+- `agent/app/clients/openemr.py` — OpenEMR FHIR client with OAuth2 dynamic client registration (RFC 7591), password grant, auto-retry on 401 ([c3fd541b](https://github.com/FpSilSha/openemr/commit/c3fd541b6))
+- `agent/app/clients/openfda.py` — Drug interaction client (RxNorm RxCUI + NLM interaction API) ([cddf52d9](https://github.com/FpSilSha/openemr/commit/cddf52d97))
+- `agent/app/clients/icd10_client.py` — ICD-10-CM lookup via NLM Clinical Tables API ([cddf52d9](https://github.com/FpSilSha/openemr/commit/cddf52d97))
+- `agent/app/clients/pubmed_client.py` — PubMed search via NCBI E-utilities ([cddf52d9](https://github.com/FpSilSha/openemr/commit/cddf52d97))
+- 7 LangChain tools: `get_patient_summary`, `search_patients`, `get_medications`, `drug_interaction_check`, `get_lab_results`, `icd10_lookup`, `pubmed_search` ([33170d98](https://github.com/FpSilSha/openemr/commit/33170d98d))
+- LangGraph StateGraph agent (reason → tools → reason loop) with Claude model ([a75905e3](https://github.com/FpSilSha/openemr/commit/a75905e3d))
+- `POST /chat` endpoint — processes messages through the agent graph ([a75905e3](https://github.com/FpSilSha/openemr/commit/a75905e3d))
+- `POST /feedback` endpoint — stub for user feedback collection ([a75905e3](https://github.com/FpSilSha/openemr/commit/a75905e3d))
+- Cost tracker middleware — JSONL logging for /chat request timing ([a75905e3](https://github.com/FpSilSha/openemr/commit/a75905e3d))
+- Frontend chat UI: ChatWindow, PatientContext, MessageBubble (markdown), ChatInput, ToolCallCard ([ddbcdf6a](https://github.com/FpSilSha/openemr/commit/ddbcdf6a0))
+- 10-case eval dataset (happy path, edge case, adversarial, multi-step) ([da700be0](https://github.com/FpSilSha/openemr/commit/da700be0e))
+- Patient seed script for demo data ([da700be0](https://github.com/FpSilSha/openemr/commit/da700be0e))
+- 30 unit tests across config, clients, tools (all passing)
+- `agent/pyproject.toml` with pytest, ruff, mypy configuration
+
+### Notes
+- OAuth2 client auto-registers on first `/chat` request — no manual browser steps needed
+- All external APIs (RxNorm, ICD-10, PubMed) are free and require no authentication
+- Agent authenticates lazily on first tool call that needs OpenEMR data
+- Frontend connects to agent via `NEXT_PUBLIC_AGENT_URL` environment variable
+
+---
+
 ## [Phase 0] - 2026-02-24
 
 Project Bootstrap & Deployment Skeleton
