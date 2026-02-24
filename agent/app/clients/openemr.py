@@ -162,6 +162,10 @@ class OpenEMRClient:
             "AllergyIntolerance", params={"patient": patient_uuid}
         )
 
+    async def get_appointments(self, patient_uuid: str) -> dict[str, Any]:
+        """Fetch Appointment resources for a patient."""
+        return await self._fhir_get("Appointment", params={"patient": patient_uuid})
+
     async def get_vitals(self, patient_uuid: str) -> dict[str, Any]:
         """Fetch vital signs (Observation category=vital-signs)."""
         return await self.get_observations(patient_uuid, category="vital-signs")

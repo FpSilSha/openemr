@@ -8,7 +8,7 @@ from langgraph.prebuilt import ToolNode
 
 from app.agent.prompts import CLINICAL_ASSISTANT_SYSTEM_PROMPT
 from app.agent.state import AgentState
-from app.tools import MVP_TOOLS
+from app.tools import ALL_TOOLS
 
 
 def _should_use_tools(state: AgentState) -> str:
@@ -19,9 +19,15 @@ def _should_use_tools(state: AgentState) -> str:
     return END
 
 
-def build_graph(model: ChatAnthropic) -> CompiledStateGraph:
-    """Build the agent graph with the given model and MVP tools."""
-    model_with_tools = model.bind_tools(MVP_TOOLS)
+def build_graph(model: ChatAnthropic, tools: list | None = None) -> CompiledStateGraph:
+    """Build the agent graph with the given model and tools.
+
+    Args:
+        model: ChatAnthropic model instance.
+        tools: List of LangChain tools to bind. Defaults to ALL_TOOLS.
+    """
+    tool_list = tools if tools is not None else ALL_TOOLS
+    model_with_tools = model.bind_tools(tool_list)
 
     async def reason(state: AgentState) -> dict:
         """Invoke the LLM with system prompt + conversation history."""
@@ -30,7 +36,7 @@ def build_graph(model: ChatAnthropic) -> CompiledStateGraph:
         response = await model_with_tools.ainvoke(messages)
         return {"messages": [response]}
 
-    tool_node = ToolNode(MVP_TOOLS)
+    tool_node = ToolNode(tool_list)
 
     graph = StateGraph(AgentState)
     graph.add_node("reason", reason)

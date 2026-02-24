@@ -17,11 +17,14 @@ from app.middleware.cost_tracker import CostTrackerMiddleware
 from app.routes.chat import router as chat_router
 from app.routes.feedback import router as feedback_router
 from app.routes.health import router as health_router
+from app.tools import allergies as allergies_tool
+from app.tools import appointments as appointments_tool
 from app.tools import icd10 as icd10_tool
 from app.tools import labs as labs_tool
 from app.tools import medications as med_tool
 from app.tools import patient as patient_tool
 from app.tools import pubmed as pubmed_tool
+from app.tools import vitals as vitals_tool
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,6 +48,9 @@ async def lifespan(app: FastAPI):
     med_tool.set_clients(openemr, drug)
     icd10_tool.set_client(icd10)
     pubmed_tool.set_client(pubmed)
+    appointments_tool.set_client(openemr)
+    vitals_tool.set_client(openemr)
+    allergies_tool.set_client(openemr)
 
     # Build agent graph
     model = get_primary_model(settings)

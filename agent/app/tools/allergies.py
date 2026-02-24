@@ -1,0 +1,66 @@
+"""Detailed allergy information LangChain tool."""
+
+from typing import Any
+
+from langchain_core.tools import tool
+
+from app.clients.openemr import OpenEMRClient
+from app.tools.base import tool_error_handler
+
+_client: OpenEMRClient | None = None
+
+
+def set_client(client: OpenEMRClient) -> None:
+    global _client
+    _client = client
+
+
+def _get_client() -> OpenEMRClient:
+    if _client is None:
+        raise RuntimeError("OpenEMR client not initialized — call set_client() first")
+    return _client
+
+
+@tool
+@tool_error_handler
+async def get_allergies_detailed(patient_uuid: str) -> dict[str, Any]:
+    """Get detailed allergy information for a patient including reactions,
+    severity, criticality, and onset dates.
+
+    Args:
+        patient_uuid: The UUID of the patient in OpenEMR.
+    """
+    client = _get_client()
+    results = await client.get_allergies(patient_uuid)
+    entries = results.get("entry", [])
+    allergies = []
+    for entry in entries:
+        resource = entry.get("resource", {})
+        code_obj = resource.get("code", {})
+        substance = code_obj.get("text", code_obj.get("coding", [{}])[0].get("display", ""))
+
+        # Parse reactions
+        reactions = []
+        for reaction in resource.get("reaction", []):
+            manifestations = reaction.get("manifestation", [])
+            manifestation_text = ""
+            if manifestations:
+                manifestation_text = manifestations[0].get(
+                    "text", manifestations[0].get("coding", [{}])[0].get("display", "")
+                )
+            reactions.append({
+                "manifestation": manifestation_text,
+                "severity": reaction.get("severity", ""),
+            })
+
+        allergies.append({
+            "substance": substance,
+            "type": resource.get("type", ""),
+            "criticality": resource.get("criticality", ""),
+            "reactions": reactions,
+            "onset": resource.get("onsetDateTime", ""),
+            "clinical_status": resource.get("clinicalStatus", {})
+            .get("coding", [{}])[0]
+            .get("code", ""),
+        })
+    return {"status": "success", "data": {"allergies": allergies, "total": len(allergies)}}
