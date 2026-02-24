@@ -20,3 +20,5 @@ class ChatResponse(BaseModel):
     conversation_id: str
     tool_calls: list[ToolCall] = []
     session_locked: bool = False
+    pending_approval: bool = False
+    pending_action: dict | None = None

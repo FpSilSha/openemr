@@ -1,11 +1,12 @@
 """Chat endpoint — sends user messages through the LangGraph agent."""
 
+import json
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.persistence.store import SessionRecord, SessionStore
 from app.schemas.chat import ChatRequest, ChatResponse, ToolCall
@@ -114,6 +115,43 @@ async def chat(req: ChatRequest, request: Request):
     config = {"configurable": {"thread_id": session.thread_id}}
     result = await graph.ainvoke(input_state, config=config)
 
+    # --- HITL: detect if graph interrupted at approval_gate ---
+    pending_approval = False
+    pending_action_data: dict | None = None
+
+    last_msg = result["messages"][-1] if result["messages"] else None
+    if isinstance(last_msg, ToolMessage):
+        for msg in reversed(result["messages"]):
+            if not isinstance(msg, ToolMessage):
+                break
+            if isinstance(msg.content, str):
+                try:
+                    data = json.loads(msg.content)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if isinstance(data, dict):
+                    inner = data.get("data", data)
+                    if inner.get("requires_human_confirmation"):
+                        pending_approval = True
+                        pending_action_data = inner
+                        break
+
+    if pending_approval and store:
+        await store.upsert_session(
+            SessionRecord(
+                conversation_id=session.conversation_id,
+                thread_id=session.thread_id,
+                patient_uuid=session.patient_uuid,
+                created_at=session.created_at,
+                pending_approval=True,
+                pending_action=(
+                    json.dumps(pending_action_data)
+                    if pending_action_data
+                    else None
+                ),
+            )
+        )
+
     # Extract tool calls from message history
     tool_calls = []
     for msg in result["messages"]:
@@ -136,4 +174,6 @@ async def chat(req: ChatRequest, request: Request):
         conversation_id=conversation_id,
         tool_calls=tool_calls,
         session_locked=session.patient_uuid is not None,
+        pending_approval=pending_approval,
+        pending_action=pending_action_data,
     )
