@@ -2,8 +2,22 @@
 
 from app.config import Settings
 
+# Env vars that CI sets which override Pydantic Settings defaults.
+_CI_ENV_VARS = [
+    "OPENEMR_BASE_URL",
+    "OPENEMR_API_URL",
+    "OPENEMR_FHIR_URL",
+    "OPENEMR_USERNAME",
+    "OPENEMR_PASSWORD",
+    "ANTHROPIC_API_KEY",
+    "LANGCHAIN_TRACING_V2",
+    "LANGCHAIN_API_KEY",
+]
 
-def test_default_settings():
+
+def test_default_settings(monkeypatch):
+    for var in _CI_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
     s = Settings(
         anthropic_api_key="test-key",
         langchain_api_key="test-ls-key",
@@ -15,7 +29,9 @@ def test_default_settings():
     assert s.agent_port == 8000
 
 
-def test_settings_override():
+def test_settings_override(monkeypatch):
+    for var in _CI_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
     s = Settings(
         anthropic_api_key="test-key",
         langchain_api_key="test-ls-key",
