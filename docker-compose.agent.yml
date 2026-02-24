@@ -34,9 +34,10 @@ services:
       OPENEMR_SETTING_rest_api: 1
       OPENEMR_SETTING_rest_system_scopes_api: 1
       OPENEMR_SETTING_rest_portal_api: 1
+      OPENEMR_SETTING_oauth_password_grant: 1
     ports:
-      - "80:80"
-      - "443:443"
+      - "8380:80"
+      - "9380:443"
     volumes:
       - openemr_sites:/var/www/localhost/htdocs/openemr/sites
       - openemr_logs:/var/log
