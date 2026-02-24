@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Phase 2] - 2026-02-24
+
+Testing Framework & Deployment Hardening
+
+### Added
+- `tests/unit/conftest.py` — shared `mock_openemr_client` and `mock_drug_client` fixtures with rich FHIR response data ([95723f60](https://github.com/FpSilSha/openemr/commit/95723f608))
+- `tests/unit/test_tools_patient.py` — 12 tests: summary assembly, 5 client sub-calls, name parsing, missing FHIR fields, error handler integration ([e2865d56](https://github.com/FpSilSha/openemr/commit/e2865d565))
+- `tests/unit/test_tools_medications.py` — 15 tests: coding fallback, drug resolution branches, safe/known/single/unresolved pairs, client guard ([e2865d56](https://github.com/FpSilSha/openemr/commit/e2865d565))
+- `tests/unit/test_tools_labs.py` — 9 tests: valueString fallback, coding fallback, missing entry key, empty data ([e2865d56](https://github.com/FpSilSha/openemr/commit/e2865d565))
+- `tests/unit/test_tools_icd10.py` — 8 tests: code/description lookup, code validation, many results passthrough ([e2865d56](https://github.com/FpSilSha/openemr/commit/e2865d565))
+- `tests/unit/test_tools_pubmed.py` — 8 tests: max_results default/custom, timeout/exception errors, empty fields ([e2865d56](https://github.com/FpSilSha/openemr/commit/e2865d565))
+- `tests/unit/test_tools_registry.py` — 2 tests: tool count, tool names (extracted from monolith) ([95723f60](https://github.com/FpSilSha/openemr/commit/95723f608))
+- `tests/unit/test_tools_error_handler.py` — 2 tests: exception/timeout catching (extracted from monolith) ([95723f60](https://github.com/FpSilSha/openemr/commit/95723f608))
+- `tests/integration/conftest.py` — auto-skip integration tests unless `AGENTFORGE_INTEGRATION=1` ([35f181e1](https://github.com/FpSilSha/openemr/commit/35f181e11))
+- `tests/integration/test_openemr_client.py` — 4 integration tests: OAuth2 auth, patient fetch, search, FHIR metadata ([35f181e1](https://github.com/FpSilSha/openemr/commit/35f181e11))
+- `tests/integration/test_agent_flow.py` — 3 integration tests: greeting, drug interaction tool call, ICD-10 tool call ([35f181e1](https://github.com/FpSilSha/openemr/commit/35f181e11))
+- `integration` pytest marker registered in `pyproject.toml`
+
+### Changed
+- Deleted monolith `test_tools.py` (13 tests) and split into 7 per-tool files (56 tool tests)
+- Total unit tests: 32 → 75; integration tests: 0 → 7
+
+### Notes
+- ICD-10 validate tests adapted to use `search()` (no dedicated `validate()` in client)
+- Integration tests require `docker-compose.agent.yml` stack + `AGENTFORGE_INTEGRATION=1`
+- CI unchanged — runs `pytest tests/unit/ -v` only
+- Every tool now has error handler integration tests (client raises → structured error)
+
+---
+
 ## [Phase 1] - 2026-02-24
 
 MVP Core — Clinical AI Agent

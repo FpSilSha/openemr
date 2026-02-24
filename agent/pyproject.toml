@@ -2,6 +2,9 @@
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "integration: marks tests requiring live Docker and/or LLM",
+]
 
 [tool.ruff]
 target-version = "py311"
