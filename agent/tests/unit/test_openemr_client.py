@@ -1,10 +1,10 @@
 """Unit tests for OpenEMR client with mocked HTTP responses."""
 
-import pytest
 import httpx
+import pytest
 
-from app.config import Settings
 from app.clients.openemr import OpenEMRClient
+from app.config import Settings
 
 REGISTRATION_RESPONSE = {
     "client_id": "test-client-id",
