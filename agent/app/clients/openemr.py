@@ -20,8 +20,9 @@ class OpenEMRClient:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self._client_id: str | None = None
-        self._client_secret: str | None = None
+        # Use persistent credentials if provided, otherwise register dynamically.
+        self._client_id: str | None = settings.openemr_client_id or None
+        self._client_secret: str | None = settings.openemr_client_secret or None
         self._access_token: str | None = None
 
         # TLS verification logic
@@ -45,6 +46,15 @@ class OpenEMRClient:
 
     # --- OAuth2 ---
 
+    # Base + granular FHIR resource scopes required by OpenEMR for API access.
+    # Uses SMART v1 syntax (.read/.write) for OpenEMR 7.x compatibility.
+    _SCOPES = (
+        "openid api:oemr api:fhir "
+        "user/Patient.read user/Observation.read user/Condition.read "
+        "user/MedicationRequest.read user/AllergyIntolerance.read "
+        "user/Appointment.read user/Encounter.read user/Practitioner.read"
+    )
+
     async def _register_client(self) -> None:
         """Dynamic client registration (RFC 7591). No auth required."""
         url = f"{self.settings.openemr_base_url}/oauth2/default/registration"
@@ -52,7 +62,7 @@ class OpenEMRClient:
             "client_name": "AgentForge",
             "redirect_uris": [f"http://localhost:{self.settings.agent_port}/callback"],
             "application_type": "private",
-            "scope": "openid api:oemr api:fhir",
+            "scope": self._SCOPES,
             "grant_types": ["password"],
             "token_endpoint_auth_method": "client_secret_post",
         }
@@ -72,7 +82,8 @@ class OpenEMRClient:
             "client_secret": self._client_secret,
             "username": self.settings.openemr_username,
             "password": self.settings.openemr_password,
-            "scope": "openid api:oemr api:fhir",
+            "scope": self._SCOPES,
+            "user_role": "users",
         }
         resp = await self.http.post(
             url,

@@ -105,7 +105,15 @@ def build_graph(
 
     async def reason(state: AgentState) -> dict:
         """Invoke the LLM with system prompt + conversation history."""
-        system = SystemMessage(content=CLINICAL_ASSISTANT_SYSTEM_PROMPT)
+        prompt = CLINICAL_ASSISTANT_SYSTEM_PROMPT
+        patient_ctx = state.get("patient_context")
+        if patient_ctx and patient_ctx.get("uuid"):
+            prompt += (
+                f"\n\n## Current Patient Context\n"
+                f"Patient UUID: {patient_ctx['uuid']}\n"
+                f"Use this UUID for all patient data lookups in this conversation."
+            )
+        system = SystemMessage(content=prompt)
         messages = [system] + state["messages"]
         response = await model_with_tools.ainvoke(messages)
         return {"messages": [response]}

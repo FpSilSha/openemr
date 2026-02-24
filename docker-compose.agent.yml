@@ -30,6 +30,7 @@ services:
       MYSQL_DATABASE: openemr
       OE_USER: admin
       OE_PASS: pass
+      OPENEMR_SETTING_site_addr_oath: "http://openemr"
       OPENEMR_SETTING_rest_fhir_api: 1
       OPENEMR_SETTING_rest_api: 1
       OPENEMR_SETTING_rest_system_scopes_api: 1
