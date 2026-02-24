@@ -5,6 +5,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Phase 3] - 2026-02-24
+
+Eval Framework, Verification Layer & Tool Expansion
+
+### Added
+- 4 new LangChain tools: `get_appointments`, `get_vitals`, `get_allergies_detailed`, `create_clinical_note` — tool count 7→11 ([4fc02a16](https://github.com/FpSilSha/openemr/commit/4fc02a162))
+- `get_appointments` client method on `OpenEMRClient` for FHIR Appointment resource ([4fc02a16](https://github.com/FpSilSha/openemr/commit/4fc02a162))
+- `ALL_TOOLS` registry export alongside existing `MVP_TOOLS` ([4fc02a16](https://github.com/FpSilSha/openemr/commit/4fc02a162))
+- 32 unit tests for 4 new tools across test_tools_appointments, test_tools_vitals, test_tools_allergies, test_tools_clinical_notes ([c083b219](https://github.com/FpSilSha/openemr/commit/c083b219d))
+- Session-based patient binding: `SessionContext` dataclass, in-memory session store, patient_uuid locked per conversation_id, HTTP 400 on mid-conversation patient change ([94c7ef45](https://github.com/FpSilSha/openemr/commit/94c7ef457))
+- `secure_tool_node` — overrides LLM-supplied patient_uuid in tool call args with session-bound value ([94c7ef45](https://github.com/FpSilSha/openemr/commit/94c7ef457))
+- `AuditLogMiddleware` — PHI access audit logging to JSONL for /chat requests with patient_uuid ([94c7ef45](https://github.com/FpSilSha/openemr/commit/94c7ef457))
+- 13 unit tests for session security (10) and audit logger (4) — total after commit: 122 ([94c7ef45](https://github.com/FpSilSha/openemr/commit/94c7ef457))
+- Verification layer with 4 modules: `drug_interactions` (interaction coverage check), `hallucination` (claim vs tool data), `confidence` (heuristic scoring), `output_validator` (format/safety) ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
+- `verify` node in LangGraph — runs post-response verification with max 1 retry on failure ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
+- 21 unit tests for verification modules — total after commit: 143 ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
+- Eval dataset expanded from 10→51 cases: 20 happy path, 11 edge cases, 10 adversarial, 10 multi-step ([fa97ca5a](https://github.com/FpSilSha/openemr/commit/fa97ca5a9))
+- 4 eval scoring functions: `correct_tool_selected`, `drug_interaction_flagged`, `source_attribution_present`, `no_system_prompt_leak` ([fa97ca5a](https://github.com/FpSilSha/openemr/commit/fa97ca5a9))
+- Eval runner script (`tests/eval/run_evals.py`) with LangSmith upload and aggregate scoring ([fa97ca5a](https://github.com/FpSilSha/openemr/commit/fa97ca5a9))
+- 11 unit tests for eval scoring — total: 154 ([fa97ca5a](https://github.com/FpSilSha/openemr/commit/fa97ca5a9))
+
+### Changed
+- Graph flow: `reason → [tools → reason]* → END` changed to `reason → [tools → reason]* → verify → END` with retry on verification failure ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
+- Chat endpoint: stateless → session-bound with `session_locked` response field ([94c7ef45](https://github.com/FpSilSha/openemr/commit/94c7ef457))
+- `build_graph()` now accepts optional `verification_model` parameter for hallucination checking ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
+- System prompt expanded with 4 new capabilities, clinical notes guidelines, and proactive interaction check guidance ([4fc02a16](https://github.com/FpSilSha/openemr/commit/4fc02a162))
+- Verification system prompt rewritten with structured claim-checking instructions ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
+- Total unit tests: 75 → 154
+
+### Notes
+- HITL state machine (TechSpec 3.7.3), tiered drug resolution (3.7.2), and fixture export (3.7.4) deferred to Phase 3b
+- `clinical_notes` tool returns `requires_human_confirmation: true` in response but does not interrupt graph — HITL interrupt comes with Phase 3b SQLite persistence
+- Session store is in-memory (single-process); SQLite-backed persistence planned for Phase 3b
+- Verification hallucination check uses Opus model when available, falls back to heuristic matching
+
+---
+
 ## [Phase 2] - 2026-02-24
 
 Testing Framework & Deployment Hardening
