@@ -13,7 +13,8 @@ def tool_error_handler(func: Callable) -> Callable:
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
         try:
-            return await func(*args, **kwargs)
+            result: dict[str, Any] = await func(*args, **kwargs)
+            return result
         except TimeoutError:
             logger.warning("Tool %s timed out", func.__name__)
             return {

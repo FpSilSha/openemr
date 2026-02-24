@@ -28,7 +28,8 @@ class DrugInteractionClient:
         id_group = data.get("idGroup", {})
         rxnorm_ids = id_group.get("rxnormId")
         if rxnorm_ids:
-            return rxnorm_ids[0]
+            result: str = rxnorm_ids[0]
+            return result
         return None
 
     async def check_interactions(self, rxcui: str) -> list[dict[str, Any]]:

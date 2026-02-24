@@ -106,7 +106,8 @@ class OpenEMRClient:
             await self.authenticate()
             resp = await self.http.get(url, headers=self._auth_headers(), params=params)
         resp.raise_for_status()
-        return resp.json()
+        result: dict[str, Any] = resp.json()
+        return result
 
     async def _api_get(self, path: str, params: dict | None = None) -> dict[str, Any]:
         """GET from the REST API with auto-retry on 401."""
@@ -117,7 +118,8 @@ class OpenEMRClient:
             await self.authenticate()
             resp = await self.http.get(url, headers=self._auth_headers(), params=params)
         resp.raise_for_status()
-        return resp.json()
+        result: dict[str, Any] = resp.json()
+        return result
 
     # --- FHIR resource methods ---
 

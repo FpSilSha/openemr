@@ -5,7 +5,7 @@ import logging
 import time
 from pathlib import Path
 
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 
@@ -18,9 +18,12 @@ LOG_FILE = LOG_DIR / "cost_log.jsonl"
 class CostTrackerMiddleware(BaseHTTPMiddleware):
     """Logs timing info for /chat requests to a JSONL file."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         if request.url.path != "/chat":
-            return await call_next(request)
+            response: Response = await call_next(request)
+            return response
 
         start = time.monotonic()
         response = await call_next(request)

@@ -3,6 +3,7 @@
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.agent.prompts import CLINICAL_ASSISTANT_SYSTEM_PROMPT
@@ -18,7 +19,7 @@ def _should_use_tools(state: AgentState) -> str:
     return END
 
 
-def build_graph(model: ChatAnthropic) -> StateGraph:
+def build_graph(model: ChatAnthropic) -> CompiledStateGraph:
     """Build the agent graph with the given model and MVP tools."""
     model_with_tools = model.bind_tools(MVP_TOOLS)
 
