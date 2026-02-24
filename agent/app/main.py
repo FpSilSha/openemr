@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.agent.graph import build_graph
-from app.agent.models import get_primary_model
+from app.agent.models import get_primary_model, get_verification_model
 from app.clients.icd10_client import ICD10Client
 from app.clients.openemr import OpenEMRClient
 from app.clients.openfda import DrugInteractionClient
@@ -53,9 +53,10 @@ async def lifespan(app: FastAPI):
     vitals_tool.set_client(openemr)
     allergies_tool.set_client(openemr)
 
-    # Build agent graph
+    # Build agent graph with verification model
     model = get_primary_model(settings)
-    graph = build_graph(model)
+    verify_model = get_verification_model(settings)
+    graph = build_graph(model, verification_model=verify_model)
     app.state.agent_graph = graph
 
     logger.info("AgentForge started — tools and agent graph ready")

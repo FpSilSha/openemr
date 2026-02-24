@@ -13,3 +13,4 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     patient_uuid: str | None
     patient_context: dict | None
+    verification_attempts: int
