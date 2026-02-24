@@ -196,4 +196,6 @@ Preserve existing authors/copyrights when editing files.
 - **LLM**: Claude Sonnet 4 (primary), Claude Opus 4 (verification)
 - **Docker**: `docker-compose.agent.yml` (ports 8380, 9380, 8000, 3000)
 - **CI**: `.github/workflows/agentforge-ci.yml`
+- **Changelog**: `AGENTFORGE_CHANGELOG.md` (Keep a Changelog format)
 - Use `Skip-Slow-Tests: true` trailer on commits to skip OpenEMR PHP test matrix
+- **Process**: At the end of every completed phase, write a summary entry in `AGENTFORGE_CHANGELOG.md` with Added/Fixed/Changed sections and commit links before moving on
