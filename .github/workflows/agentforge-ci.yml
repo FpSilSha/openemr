@@ -1,0 +1,62 @@
+name: AgentForge CI
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'agent/**'
+      - 'frontend/**'
+      - 'docker-compose.agent.yml'
+
+jobs:
+  agent-lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Lint with ruff
+        run: ruff check app/
+
+      - name: Type check with mypy
+        run: mypy app/ --ignore-missing-imports
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short
+        env:
+          ANTHROPIC_API_KEY: fake-key-for-unit-tests
+          LANGCHAIN_TRACING_V2: "false"
+          OPENEMR_BASE_URL: http://localhost
+          OPENEMR_API_URL: http://localhost/apis/default
+          OPENEMR_FHIR_URL: http://localhost/apis/default/fhir
+          OPENEMR_USERNAME: admin
+          OPENEMR_PASSWORD: pass
+
+  frontend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint

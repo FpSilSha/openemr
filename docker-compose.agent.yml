@@ -1,0 +1,114 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: openemr
+      MYSQL_USER: openemr
+      MYSQL_PASSWORD: openemr
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  openemr:
+    image: openemr/openemr:7.0.2
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASS: root
+      MYSQL_USER: openemr
+      MYSQL_PASS: openemr
+      MYSQL_DATABASE: openemr
+      OE_USER: admin
+      OE_PASS: pass
+      OPENEMR_SETTING_rest_fhir_api: 1
+      OPENEMR_SETTING_rest_api: 1
+      OPENEMR_SETTING_rest_system_scopes_api: 1
+      OPENEMR_SETTING_rest_portal_api: 1
+      OPENEMR_SETTING_oauth_password_grant: 1
+    ports:
+      - "8380:80"
+      - "9380:443"
+    volumes:
+      - openemr_sites:/var/www/localhost/htdocs/openemr/sites
+      - openemr_logs:/var/log
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/apis/default/fhir/metadata"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    depends_on:
+      openemr:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      OPENEMR_BASE_URL: http://openemr:80
+      OPENEMR_API_URL: http://openemr:80/apis/default
+      OPENEMR_FHIR_URL: http://openemr:80/apis/default/fhir
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./agent/app:/app/app
+      - cost_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      - agent
+    environment:
+      NEXT_PUBLIC_AGENT_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+
+  seed:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    profiles:
+      - seed
+    depends_on:
+      openemr:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      OPENEMR_BASE_URL: http://openemr:80
+      OPENEMR_API_URL: http://openemr:80/apis/default
+      OPENEMR_FHIR_URL: http://openemr:80/apis/default/fhir
+    command: >
+      sh -c "python scripts/seed_patients.py && python scripts/export_fixtures.py"
+    volumes:
+      - ./agent:/app
+
+volumes:
+  mysql_data:
+  openemr_sites:
+  openemr_logs:
+  cost_logs:
