@@ -1,53 +1,4 @@
-version: "3.8"
-
 services:
-  mysql:
-    image: mariadb:10.11
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: openemr
-      MYSQL_USER: openemr
-      MYSQL_PASSWORD: openemr
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
-  openemr:
-    image: openemr/openemr:7.0.2
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      MYSQL_HOST: mysql
-      MYSQL_ROOT_PASS: root
-      MYSQL_USER: openemr
-      MYSQL_PASS: openemr
-      MYSQL_DATABASE: openemr
-      OE_USER: admin
-      OE_PASS: pass
-      OPENEMR_SETTING_rest_fhir_api: 1
-      OPENEMR_SETTING_rest_api: 1
-      OPENEMR_SETTING_rest_system_scopes_api: 1
-      OPENEMR_SETTING_rest_portal_api: 1
-      OPENEMR_SETTING_oauth_password_grant: 1
-    ports:
-      - "8380:80"
-      - "9380:443"
-    volumes:
-      - openemr_sites:/var/www/localhost/htdocs/openemr/sites
-      - openemr_logs:/var/log
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/apis/default/fhir/metadata"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
-
   agent:
     build:
       context: ./agent
@@ -87,6 +38,54 @@ services:
     volumes:
       - ./frontend/src:/app/src
 
+  mysql:
+    image: mariadb:10.11
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: openemr
+      MYSQL_USER: openemr
+      MYSQL_PASSWORD: openemr
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  openemr:
+    image: openemr/openemr:7.0.2
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASS: root
+      MYSQL_USER: openemr
+      MYSQL_PASS: openemr
+      MYSQL_DATABASE: openemr
+      OE_USER: admin
+      OE_PASS: pass
+      OPENEMR_SETTING_site_addr_oath: "http://openemr"
+      OPENEMR_SETTING_rest_fhir_api: 1
+      OPENEMR_SETTING_rest_api: 1
+      OPENEMR_SETTING_rest_system_scopes_api: 1
+      OPENEMR_SETTING_rest_portal_api: 1
+      OPENEMR_SETTING_oauth_password_grant: 1
+    ports:
+      - "8380:80"
+      - "9380:443"
+    volumes:
+      - openemr_sites:/var/www/localhost/htdocs/openemr/sites
+      - openemr_logs:/var/log
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/apis/default/fhir/metadata"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
   seed:
     build:
       context: ./agent
@@ -108,7 +107,7 @@ services:
       - ./agent:/app
 
 volumes:
-  mysql_data:
-  openemr_sites:
-  openemr_logs:
   cost_logs:
+  mysql_data:
+  openemr_logs:
+  openemr_sites:

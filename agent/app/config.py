@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     openemr_password: str = "pass"
     openemr_verify_ssl: bool = True
 
+    # OAuth2 client credentials (optional — skip dynamic registration if provided)
+    openemr_client_id: str = ""
+    openemr_client_secret: str = ""
+
     # Models
     primary_model: str = "claude-sonnet-4-20250514"
     verification_model: str = "claude-opus-4-20250514"

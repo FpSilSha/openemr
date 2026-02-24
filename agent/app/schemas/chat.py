@@ -19,3 +19,4 @@ class ChatResponse(BaseModel):
     response: str
     conversation_id: str
     tool_calls: list[ToolCall] = []
+    session_locked: bool = False
