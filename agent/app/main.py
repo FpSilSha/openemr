@@ -13,6 +13,7 @@ from app.clients.openemr import OpenEMRClient
 from app.clients.openfda import DrugInteractionClient
 from app.clients.pubmed_client import PubMedClient
 from app.config import settings
+from app.middleware.audit_logger import AuditLogMiddleware
 from app.middleware.cost_tracker import CostTrackerMiddleware
 from app.routes.chat import router as chat_router
 from app.routes.feedback import router as feedback_router
@@ -78,6 +79,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(CostTrackerMiddleware)
+app.add_middleware(AuditLogMiddleware)
 
 app.include_router(health_router)
 app.include_router(chat_router)
