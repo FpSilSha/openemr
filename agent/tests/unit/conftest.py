@@ -61,7 +61,16 @@ def mock_openemr_client():
                 "resource": {
                     "resourceType": "AllergyIntolerance",
                     "code": {"text": "Penicillin"},
+                    "type": "allergy",
+                    "criticality": "high",
                     "clinicalStatus": {"coding": [{"code": "active"}]},
+                    "onsetDateTime": "2020-03-15",
+                    "reaction": [
+                        {
+                            "manifestation": [{"text": "Hives"}],
+                            "severity": "severe",
+                        }
+                    ],
                 }
             }
         ],
@@ -92,6 +101,44 @@ def mock_openemr_client():
                     "status": "final",
                 }
             }
+        ],
+    }
+
+    client.get_appointments.return_value = {
+        "resourceType": "Bundle",
+        "entry": [
+            {
+                "resource": {
+                    "resourceType": "Appointment",
+                    "status": "booked",
+                    "start": "2026-03-01T09:00:00Z",
+                    "participant": [
+                        {
+                            "actor": {
+                                "reference": "Practitioner/prov-1",
+                                "display": "Dr. Smith",
+                            }
+                        }
+                    ],
+                    "reasonCode": [{"text": "Follow-up visit"}],
+                }
+            },
+            {
+                "resource": {
+                    "resourceType": "Appointment",
+                    "status": "fulfilled",
+                    "start": "2026-01-10T14:30:00Z",
+                    "participant": [
+                        {
+                            "actor": {
+                                "reference": "Practitioner/prov-2",
+                                "display": "Dr. Jones",
+                            }
+                        }
+                    ],
+                    "reasonCode": [{"text": "Annual physical"}],
+                }
+            },
         ],
     }
 
