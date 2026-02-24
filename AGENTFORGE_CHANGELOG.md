@@ -34,11 +34,27 @@ Eval Framework, Verification Layer & Tool Expansion
 - Verification system prompt rewritten with structured claim-checking instructions ([768be261](https://github.com/FpSilSha/openemr/commit/768be2612))
 - Total unit tests: 75 → 154
 
+### Fixed
+- OAuth2 token request now includes `user_role: "users"` required by OpenEMR password grant ([da68e227](https://github.com/FpSilSha/openemr/commit/da68e2278))
+- Added `OPENEMR_SETTING_site_addr_oath` to docker-compose — required for OAuth2 audience validation ([b520041b](https://github.com/FpSilSha/openemr/commit/b520041be))
+- OAuth2 scopes expanded from base-only (`api:fhir`) to granular FHIR resource scopes (`user/Patient.read`, etc.) using SMART v1 syntax for OpenEMR 7.x compatibility ([b520041b](https://github.com/FpSilSha/openemr/commit/b520041be))
+- Patient context UUID now injected into system prompt so LLM uses session-bound patient for tool calls ([b520041b](https://github.com/FpSilSha/openemr/commit/b520041be))
+- Verification drug interaction check no longer triggers false positives on generic words like "medication" ([da68e227](https://github.com/FpSilSha/openemr/commit/da68e2278))
+- Chat response extraction finds last AIMessage instead of assuming `messages[-1]` ([da68e227](https://github.com/FpSilSha/openemr/commit/da68e2278))
+- OpenEMR client auto-authenticates on first FHIR/REST call if no token exists ([da68e227](https://github.com/FpSilSha/openemr/commit/da68e2278))
+- OpenEMR client tests rewritten with `unittest.mock` to prevent real network calls inside Docker ([b520041b](https://github.com/FpSilSha/openemr/commit/b520041be))
+
+### Added (post-merge smoke testing)
+- Persistent OAuth2 client credentials via `OPENEMR_CLIENT_ID` / `OPENEMR_CLIENT_SECRET` env vars — skips dynamic registration on restart ([b520041b](https://github.com/FpSilSha/openemr/commit/b520041be))
+- `.env.example` updated with OAuth2 credential fields ([b520041b](https://github.com/FpSilSha/openemr/commit/b520041be))
+
 ### Notes
 - HITL state machine (TechSpec 3.7.3), tiered drug resolution (3.7.2), and fixture export (3.7.4) deferred to Phase 3b
 - `clinical_notes` tool returns `requires_human_confirmation: true` in response but does not interrupt graph — HITL interrupt comes with Phase 3b SQLite persistence
 - Session store is in-memory (single-process); SQLite-backed persistence planned for Phase 3b
 - Verification hallucination check uses Opus model when available, falls back to heuristic matching
+- All 11 tools smoke tested against live Docker stack: patient search, summary, medications, vitals, labs, allergies, appointments, drug interactions, ICD-10, PubMed, session security
+- Total unit tests: 155
 
 ---
 
