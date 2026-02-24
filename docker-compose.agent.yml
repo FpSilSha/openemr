@@ -1,6 +1,43 @@
-version: "3.8"
-
 services:
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    depends_on:
+      openemr:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      OPENEMR_BASE_URL: http://openemr:80
+      OPENEMR_API_URL: http://openemr:80/apis/default
+      OPENEMR_FHIR_URL: http://openemr:80/apis/default/fhir
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./agent/app:/app/app
+      - cost_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    depends_on:
+      - agent
+    environment:
+      NEXT_PUBLIC_AGENT_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+
   mysql:
     image: mariadb:10.11
     environment:
@@ -49,45 +86,6 @@ services:
       retries: 10
       start_period: 60s
 
-  agent:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
-    depends_on:
-      openemr:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      OPENEMR_BASE_URL: http://openemr:80
-      OPENEMR_API_URL: http://openemr:80/apis/default
-      OPENEMR_FHIR_URL: http://openemr:80/apis/default/fhir
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./agent/app:/app/app
-      - cost_logs:/app/logs
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: dev
-    depends_on:
-      - agent
-    environment:
-      NEXT_PUBLIC_AGENT_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend/src:/app/src
-
   seed:
     build:
       context: ./agent
@@ -109,7 +107,7 @@ services:
       - ./agent:/app
 
 volumes:
-  mysql_data:
-  openemr_sites:
-  openemr_logs:
   cost_logs:
+  mysql_data:
+  openemr_logs:
+  openemr_sites:

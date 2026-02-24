@@ -1,7 +1,10 @@
 """LangGraph agent graph — reason → tools → reason → verify loop."""
 
+from __future__ import annotations
+
 import copy
 import logging
+from typing import Any
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, SystemMessage
@@ -58,32 +61,35 @@ def _should_retry_or_end(state: AgentState) -> str:
 def _build_secure_tool_node(tool_node: ToolNode):
     """Wrap ToolNode to enforce session-bound patient_uuid."""
 
-    async def secure_tool_node(state: AgentState) -> dict:
+    async def secure_tool_node(state: AgentState) -> dict[str, Any]:
         """Override patient_uuid in tool args with session-bound value."""
         patient_ctx = state.get("patient_context")
         if patient_ctx and patient_ctx.get("uuid"):
             session_uuid = patient_ctx["uuid"]
             last = state["messages"][-1]
-            if hasattr(last, "tool_calls") and last.tool_calls:
+            if isinstance(last, AIMessage) and last.tool_calls:
                 # Deep copy to avoid mutating the original message
                 patched = copy.deepcopy(state)
                 patched_last = patched["messages"][-1]
-                for tc in patched_last.tool_calls:
-                    if (
-                        tc["name"] in _PATIENT_SCOPED_TOOLS
-                        and "patient_uuid" in tc["args"]
-                    ):
-                        original = tc["args"]["patient_uuid"]
-                        if original != session_uuid:
-                            logger.warning(
-                                "Overriding patient_uuid %s → %s in %s",
-                                original,
-                                session_uuid,
-                                tc["name"],
-                            )
-                        tc["args"]["patient_uuid"] = session_uuid
-                return await tool_node.ainvoke(patched)
-        return await tool_node.ainvoke(state)
+                if isinstance(patched_last, AIMessage):
+                    for tc in patched_last.tool_calls:
+                        if (
+                            tc["name"] in _PATIENT_SCOPED_TOOLS
+                            and "patient_uuid" in tc["args"]
+                        ):
+                            original = tc["args"]["patient_uuid"]
+                            if original != session_uuid:
+                                logger.warning(
+                                    "Overriding patient_uuid %s → %s in %s",
+                                    original,
+                                    session_uuid,
+                                    tc["name"],
+                                )
+                            tc["args"]["patient_uuid"] = session_uuid
+                result: dict[str, Any] = await tool_node.ainvoke(patched)
+                return result
+        result = await tool_node.ainvoke(state)
+        return result  # type: ignore[return-value]
 
     return secure_tool_node
 

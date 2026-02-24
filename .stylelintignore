@@ -27,3 +27,7 @@ interface/super/**/*.scss
 interface/themes/**/*.css
 interface/themes/**/*.scss
 Documentation/EHI_Export/**/*.css
+
+# AgentForge frontend uses Tailwind CSS directives
+frontend/**/*.css
+frontend/**/*.scss

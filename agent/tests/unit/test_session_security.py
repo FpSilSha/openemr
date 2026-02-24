@@ -1,8 +1,9 @@
 """Unit tests for session-based patient binding and secure tool node."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
+from langchain_core.messages import AIMessage
 
 from app.routes.chat import SessionContext, get_sessions
 
@@ -103,24 +104,16 @@ async def test_secure_tool_node_overrides_patient_uuid():
     secure_fn = _build_secure_tool_node(mock_tool_node)
 
     # Build a fake state with a tool call containing wrong UUID
-    tool_call = MagicMock()
-    tool_call.name = "get_patient_summary"
-    tool_call.tool_calls = [
-        {
-            "name": "get_patient_summary",
-            "args": {"patient_uuid": "wrong-uuid"},
-            "id": "tc-1",
-        }
-    ]
-    # The last message needs tool_calls attribute
-    last_msg = MagicMock()
-    last_msg.tool_calls = [
-        {
-            "name": "get_patient_summary",
-            "args": {"patient_uuid": "wrong-uuid"},
-            "id": "tc-1",
-        }
-    ]
+    last_msg = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_patient_summary",
+                "args": {"patient_uuid": "wrong-uuid"},
+                "id": "tc-1",
+            }
+        ],
+    )
 
     state = {
         "messages": [last_msg],
