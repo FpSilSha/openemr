@@ -18,7 +18,10 @@ def drug_client():
 @pytest.mark.asyncio
 async def test_get_rxcui(drug_client, httpx_mock):
     httpx_mock.add_response(
-        url="https://rxnav.nlm.nih.gov/REST/rxcui.json?name=aspirin",
+        url=httpx.URL(
+            "https://rxnav.nlm.nih.gov/REST/rxcui.json",
+            params={"name": "aspirin", "search": "0"},
+        ),
         json={"idGroup": {"rxnormId": ["1191"]}},
     )
     rxcui = await drug_client.get_rxcui("aspirin")
@@ -28,7 +31,10 @@ async def test_get_rxcui(drug_client, httpx_mock):
 @pytest.mark.asyncio
 async def test_get_rxcui_not_found(drug_client, httpx_mock):
     httpx_mock.add_response(
-        url="https://rxnav.nlm.nih.gov/REST/rxcui.json?name=fakemed",
+        url=httpx.URL(
+            "https://rxnav.nlm.nih.gov/REST/rxcui.json",
+            params={"name": "fakemed", "search": "0"},
+        ),
         json={"idGroup": {"name": "fakemed"}},
     )
     rxcui = await drug_client.get_rxcui("fakemed")
