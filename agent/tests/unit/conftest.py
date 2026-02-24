@@ -1,8 +1,12 @@
 """Shared test fixtures for AgentForge unit tests."""
 
+import os
+import tempfile
 from unittest.mock import AsyncMock
 
 import pytest
+
+from app.persistence.store import SessionStore
 
 
 @pytest.fixture
@@ -161,9 +165,10 @@ def mock_openemr_client():
 
 @pytest.fixture
 def mock_drug_client():
-    """AsyncMock of DrugInteractionClient with RxCUI resolution and interaction data."""
+    """AsyncMock of DrugInteractionClient with tiered resolution and interaction data."""
     client = AsyncMock()
 
+    # Legacy exact-match API (used by external client tests)
     client.get_rxcui.side_effect = lambda name: {
         "aspirin": "1191",
         "warfarin": "11289",
@@ -179,4 +184,45 @@ def mock_drug_client():
         }
     ]
 
+    # Tiered resolution API (used by drug_interaction_check tool)
+    def _make_resolution(rxcui, name, tier=1, confidence=1.0):
+        return {
+            "rxcui": rxcui,
+            "name": name,
+            "resolution_tier": tier,
+            "confidence": confidence,
+            "candidates": [],
+            "ambiguous": False,
+            "original_name": name,
+        }
+
+    client.check_interactions_by_names.return_value = {
+        "interactions": [
+            {
+                "severity": "high",
+                "description": "Increased bleeding risk",
+                "drugs": ["aspirin", "warfarin"],
+            }
+        ],
+        "resolutions": {
+            "aspirin": _make_resolution("1191", "aspirin"),
+            "warfarin": _make_resolution("11289", "warfarin"),
+        },
+        "unresolved": [],
+        "check_complete": True,
+        "warning": None,
+    }
+
     return client
+
+
+@pytest.fixture
+async def mock_session_store():
+    """Temporary SQLite-backed SessionStore for tests."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+        db_path = f.name
+    store = SessionStore(db_path)
+    await store.init_db()
+    yield store
+    await store.close()
+    os.unlink(db_path)
