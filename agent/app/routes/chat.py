@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from app.schemas.chat import ChatRequest, ChatResponse, ToolCall
 
@@ -91,8 +91,12 @@ async def chat(req: ChatRequest, request: Request):
                     args=tc["args"],
                 ))
 
-    # Last AI message is the response
-    response_text = result["messages"][-1].content
+    # Find the last AIMessage (skip SystemMessage verification feedback)
+    response_text = ""
+    for msg in reversed(result["messages"]):
+        if isinstance(msg, AIMessage) and isinstance(msg.content, str):
+            response_text = msg.content
+            break
 
     return ChatResponse(
         response=response_text,

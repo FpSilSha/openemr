@@ -7,21 +7,37 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
-# Patterns that suggest medication discussion
-_MED_PATTERNS = re.compile(
+# Generic medication terms (need a specific drug name too)
+_GENERIC_MED_TERMS = re.compile(
+    r"\b(medication|drug|prescription|dose|dosage|tablet|capsule"
+    r"|interaction|contraindic)\b",
+    re.IGNORECASE,
+)
+
+# Specific drug names or dosage units that indicate real medication discussion
+_SPECIFIC_MED_PATTERNS = re.compile(
     r"\b("
-    r"medication|drug|prescription|dose|dosage|mg|mcg|ml|tablet|capsule"
-    r"|aspirin|warfarin|metformin|lisinopril|ibuprofen|acetaminophen"
+    r"aspirin|warfarin|metformin|lisinopril|ibuprofen|acetaminophen"
     r"|amoxicillin|omeprazole|atorvastatin|amlodipine|losartan"
-    r"|interaction|contraindic"
+    r"|hydrochlorothiazide|prednisone|gabapentin|levothyroxine"
+    r"|oxycodone|tramadol|clopidogrel|simvastatin|pantoprazole"
     r")\b",
+    re.IGNORECASE,
+)
+
+# Dosage pattern (e.g., "500mg", "10 mg", "0.5 mcg")
+_DOSAGE_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)?\s*(?:mg|mcg|ml|units?)\b",
     re.IGNORECASE,
 )
 
 
 def _mentions_medications(text: str) -> bool:
-    """Return True if text contains medication-related keywords."""
-    return bool(_MED_PATTERNS.search(text))
+    """Return True if text discusses specific medications (not just listing capabilities)."""
+    # Require a specific drug name OR a dosage pattern
+    has_specific = bool(_SPECIFIC_MED_PATTERNS.search(text))
+    has_dosage = bool(_DOSAGE_PATTERN.search(text))
+    return has_specific or has_dosage
 
 
 def _drug_check_was_called(messages: list[BaseMessage]) -> bool:

@@ -99,6 +99,8 @@ class OpenEMRClient:
 
     async def _fhir_get(self, path: str, params: dict | None = None) -> dict[str, Any]:
         """GET from the FHIR API with auto-retry on 401."""
+        if not self._access_token:
+            await self.authenticate()
         url = f"{self.settings.openemr_fhir_url}/{path}"
         resp = await self.http.get(url, headers=self._auth_headers(), params=params)
         if resp.status_code == 401:
@@ -111,6 +113,8 @@ class OpenEMRClient:
 
     async def _api_get(self, path: str, params: dict | None = None) -> dict[str, Any]:
         """GET from the REST API with auto-retry on 401."""
+        if not self._access_token:
+            await self.authenticate()
         url = f"{self.settings.openemr_api_url}/{path}"
         resp = await self.http.get(url, headers=self._auth_headers(), params=params)
         if resp.status_code == 401:

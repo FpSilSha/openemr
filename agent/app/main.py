@@ -43,6 +43,13 @@ async def lifespan(app: FastAPI):
         timeout=settings.tool_timeout_seconds,
     )
 
+    # Authenticate with OpenEMR (OAuth2 registration + token)
+    try:
+        await openemr.authenticate()
+        logger.info("OpenEMR OAuth2 authentication successful")
+    except Exception as e:
+        logger.warning("OpenEMR auth failed (tools will retry): %s", e)
+
     # Inject clients into tool modules
     patient_tool.set_client(openemr)
     labs_tool.set_client(openemr)

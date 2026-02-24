@@ -240,6 +240,23 @@ async def test_get_medications(client, httpx_mock):
 
 
 @pytest.mark.asyncio
-async def test_not_authenticated_raises(client):
-    with pytest.raises(RuntimeError, match="Not authenticated"):
-        await client.get_patient("any-uuid")
+async def test_unauthenticated_client_auto_authenticates(client, httpx_mock):
+    """Client auto-authenticates on first FHIR call if no token exists."""
+    httpx_mock.add_response(
+        url="http://openemr:80/oauth2/default/registration",
+        json=REGISTRATION_RESPONSE,
+    )
+    httpx_mock.add_response(
+        url="http://openemr:80/oauth2/default/token",
+        json=TOKEN_RESPONSE,
+    )
+    httpx_mock.add_response(
+        url=httpx.URL(
+            "http://openemr:80/apis/default/fhir/Patient/any-uuid",
+        ),
+        json=PATIENT_RESOURCE,
+    )
+
+    result = await client.get_patient("any-uuid")
+    assert result["resourceType"] == "Patient"
+    assert client._access_token == "test-access-token"

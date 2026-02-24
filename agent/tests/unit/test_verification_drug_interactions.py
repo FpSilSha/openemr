@@ -68,6 +68,17 @@ def test_drug_names_case_insensitive():
     assert result["passed"] is True
 
 
+def test_generic_medication_word_does_not_trigger():
+    """Listing 'medications' as a capability is not a drug discussion."""
+    messages = [
+        HumanMessage(content="What can you help me with?"),
+        _ai("I can help you look up medications, check drug interactions, "
+            "and search medical literature."),
+    ]
+    result = check_drug_interaction_coverage(messages)
+    assert result["passed"] is True
+
+
 def test_empty_messages_passes():
     """Empty message list → pass."""
     result = check_drug_interaction_coverage([])
