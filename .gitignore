@@ -20,6 +20,7 @@ ccdaservice/node_modules
 /.vscode/*
 /.vscode-oss/*
 /nbproject/*
+/.claude
 .DS_Store
 .buildpath
 .project
@@ -34,3 +35,18 @@ coverage/js-unit
 
 # phpstan
 tmp-phpstan/*
+
+# AgentForge specs (private)
+AgentForge_OpenEMR_TechSpec.md
+AgentForge_OpenEMR_Integration_Guides.md
+
+# === AgentForge Clinical AI Agent additions ===
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.next/
+out/
+.env.local
+*.sqlite3
+cost_log.jsonl
