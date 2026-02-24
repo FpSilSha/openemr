@@ -9,7 +9,11 @@ pydantic-settings==2.5.2
 langchain==0.3.14
 langchain-anthropic==0.3.7
 langgraph==0.2.60
+langgraph-checkpoint-sqlite==2.0.1
 langsmith==0.1.130
+
+# Async SQLite
+aiosqlite==0.20.0
 
 # Utilities
 python-dotenv==1.0.1

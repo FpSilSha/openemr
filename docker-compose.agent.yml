@@ -16,6 +16,7 @@ services:
       - "8000:8000"
     volumes:
       - ./agent/app:/app/app
+      - agent_data:/app/data
       - cost_logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -107,6 +108,7 @@ services:
       - ./agent:/app
 
 volumes:
+  agent_data:
   cost_logs:
   mysql_data:
   openemr_logs:

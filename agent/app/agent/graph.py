@@ -98,6 +98,7 @@ def build_graph(
     model: ChatAnthropic,
     tools: list | None = None,
     verification_model: ChatAnthropic | None = None,
+    checkpointer: Any | None = None,
 ) -> CompiledStateGraph:
     """Build the agent graph with the given model, tools, and verification.
 
@@ -105,6 +106,7 @@ def build_graph(
         model: ChatAnthropic model instance for primary reasoning.
         tools: List of LangChain tools to bind. Defaults to ALL_TOOLS.
         verification_model: Optional model for hallucination checks.
+        checkpointer: Optional LangGraph checkpointer for state persistence.
     """
     tool_list = tools if tools is not None else ALL_TOOLS
     model_with_tools = model.bind_tools(tool_list)
@@ -172,4 +174,8 @@ def build_graph(
         {"reason": "reason", END: END},
     )
 
-    return graph.compile()
+    compile_kwargs: dict[str, Any] = {}
+    if checkpointer is not None:
+        compile_kwargs["checkpointer"] = checkpointer
+
+    return graph.compile(**compile_kwargs)

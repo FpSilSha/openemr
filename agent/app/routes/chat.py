@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 from langchain_core.messages import AIMessage, HumanMessage
 
+from app.persistence.store import SessionRecord, SessionStore
 from app.schemas.chat import ChatRequest, ChatResponse, ToolCall
 
 router = APIRouter()
@@ -17,19 +18,25 @@ class SessionContext:
     """Server-side session state — LLM never sees or controls this."""
 
     conversation_id: str
+    thread_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     patient_uuid: str | None = None
     created_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
 
 
-# In-memory session store (single-process; SQLite in Phase 3b)
+# In-memory fallback (used when no SQLite store is configured, e.g. tests)
 _sessions: dict[str, SessionContext] = {}
 
 
 def get_sessions() -> dict[str, SessionContext]:
-    """Accessor for session store (allows test injection)."""
+    """Accessor for in-memory session store (test compatibility)."""
     return _sessions
+
+
+def _get_store(request: Request) -> SessionStore | None:
+    """Get the SQLite session store from app state, if available."""
+    return getattr(request.app.state, "session_store", None)
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -37,11 +44,25 @@ async def chat(req: ChatRequest, request: Request):
     """Process a user chat message through the clinical AI agent."""
     graph = request.app.state.agent_graph
     conversation_id = req.conversation_id or str(uuid.uuid4())
-    sessions = get_sessions()
+    store = _get_store(request)
 
-    # --- Session binding ---
-    if conversation_id in sessions:
-        session = sessions[conversation_id]
+    # --- Session binding (SQLite-backed when available) ---
+    session: SessionContext | None = None
+
+    if store:
+        record = await store.get_session(conversation_id)
+        if record:
+            session = SessionContext(
+                conversation_id=record.conversation_id,
+                thread_id=record.thread_id,
+                patient_uuid=record.patient_uuid,
+                created_at=record.created_at,
+            )
+    else:
+        # Fallback to in-memory
+        session = _sessions.get(conversation_id)
+
+    if session:
         # SECURITY: reject patient_uuid changes mid-conversation
         if (
             session.patient_uuid
@@ -63,7 +84,17 @@ async def chat(req: ChatRequest, request: Request):
             conversation_id=conversation_id,
             patient_uuid=req.patient_uuid,
         )
-        sessions[conversation_id] = session
+
+    # Persist session
+    if store:
+        await store.upsert_session(SessionRecord(
+            conversation_id=session.conversation_id,
+            thread_id=session.thread_id,
+            patient_uuid=session.patient_uuid,
+            created_at=session.created_at,
+        ))
+    else:
+        _sessions[conversation_id] = session
 
     # Use session-bound patient_uuid (not the request's)
     patient_uuid = session.patient_uuid
@@ -79,7 +110,9 @@ async def chat(req: ChatRequest, request: Request):
         "patient_context": patient_context,
     }
 
-    result = await graph.ainvoke(input_state)
+    # Pass thread_id for LangGraph state persistence
+    config = {"configurable": {"thread_id": session.thread_id}}
+    result = await graph.ainvoke(input_state, config=config)
 
     # Extract tool calls from message history
     tool_calls = []
