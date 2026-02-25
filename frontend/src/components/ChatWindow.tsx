@@ -56,6 +56,13 @@ export default function ChatWindow() {
             const data = await res.json();
             setConversationId(data.conversation_id);
 
+            // Compute only NEW tool calls (backend returns cumulative list)
+            const allToolCalls: ToolCall[] = data.tool_calls || [];
+            const previousCount = messages
+                .filter((m) => m.role === 'assistant')
+                .reduce((count, m) => count + (m.toolCalls?.length || 0), 0);
+            const newToolCalls = allToolCalls.slice(previousCount);
+
             if (data.pending_approval && data.pending_action) {
                 setPendingApproval(true);
                 setPendingAction(data.pending_action);
@@ -63,14 +70,14 @@ export default function ChatWindow() {
                 const statusMsg: Message = {
                     role: 'assistant',
                     content: data.response || 'A draft has been created and requires your review before it can be saved.',
-                    toolCalls: data.tool_calls,
+                    toolCalls: newToolCalls.length > 0 ? newToolCalls : undefined,
                 };
                 setMessages((prev) => [...prev, statusMsg]);
             } else {
                 const assistantMsg: Message = {
                     role: 'assistant',
                     content: data.response,
-                    toolCalls: data.tool_calls,
+                    toolCalls: newToolCalls.length > 0 ? newToolCalls : undefined,
                 };
                 setMessages((prev) => [...prev, assistantMsg]);
             }
