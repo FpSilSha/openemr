@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Anvil -->
+  <path d="M8 38 Q4 38 2 42 L0 46 Q0 48 2 48 L10 48 L10 56 Q10 58 12 58 L52 58 Q54 58 54 56 L54 48 L62 48 Q64 48 64 46 L62 42 Q60 38 56 38 L40 38 L40 36 Q40 34 38 34 L26 34 Q24 34 24 36 L24 38 Z" fill="#1a1a1a"/>
+  <!-- Hammer head -->
+  <path d="M28 8 L28 4 Q28 2 30 2 L42 2 Q44 2 44 4 L44 16 Q44 18 42 18 L30 18 Q28 18 28 16 Z" fill="#1a1a1a"/>
+  <!-- Hammer handle -->
+  <path d="M34 18 L22 30 L26 34 L38 22 Z" fill="#1a1a1a"/>
+</svg>
