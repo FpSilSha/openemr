@@ -74,6 +74,24 @@ This project exists thanks to all the people who have contributed. [[Contribute]
 Thanks to our [ONC Certification Major Sponsors](https://www.open-emr.org/wiki/index.php/OpenEMR_Certification_Stage_III_Meaningful_Use#Major_sponsors)!
 
 
+### AI Assistant
+
+This fork includes **AgentForge**, a clinical AI assistant that connects to OpenEMR via its FHIR API. It runs as a standalone companion — no OpenEMR PHP code is modified.
+
+AgentForge provides a conversational interface for healthcare providers to query patient data, check drug interactions, review labs and vitals, and draft clinical notes, all backed by OpenEMR as the source of truth.
+
+**Tech stack:** Python 3.11 / FastAPI / LangGraph / LangChain (agent), Next.js 14 / React 18 / Tailwind CSS (frontend), Claude Sonnet 4 + Opus 4 (LLM).
+
+**How it connects:** The agent authenticates with OpenEMR via OAuth2 password grant and reads patient data through standard FHIR endpoints. It does not write to the database. Clinical note drafts require human-in-the-loop approval before any action is taken.
+
+**What's included:**
+- `agent/` — Python FastAPI backend with 11 LangChain tools and a verification layer
+- `frontend/` — Next.js chat UI with patient context, tool call cards, and approval workflows
+- `docker-compose.agent.yml` — Runs the full stack (agent + frontend + OpenEMR + MariaDB)
+- 196 unit tests, 7 integration tests, 51-case evaluation dataset
+
+> The agent is designed to eventually integrate more deeply with the EMR without modifying core OpenEMR code. See [AGENTFORGE_CHANGELOG.md](AGENTFORGE_CHANGELOG.md) for detailed development history.
+
 ### License
 
 [GNU GPL](LICENSE)
