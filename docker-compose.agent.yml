@@ -16,6 +16,7 @@ services:
       - "8000:8000"
     volumes:
       - ./agent/app:/app/app
+      - ./agent/tests:/app/tests
       - agent_data:/app/data
       - cost_logs:/app/logs
     healthcheck:

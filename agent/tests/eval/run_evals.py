@@ -178,6 +178,46 @@ def upload_to_langsmith(dataset: list[dict]) -> None:
         logger.warning("LangSmith upload failed: %s", e)
 
 
+async def _init_clients():
+    """Initialize tool clients (same as main.py lifespan)."""
+    from app.clients.icd10_client import ICD10Client
+    from app.clients.openemr import OpenEMRClient
+    from app.clients.openfda import DrugInteractionClient
+    from app.clients.pubmed_client import PubMedClient
+    from app.config import settings
+    from app.tools import allergies as allergies_tool
+    from app.tools import appointments as appointments_tool
+    from app.tools import icd10 as icd10_tool
+    from app.tools import labs as labs_tool
+    from app.tools import medications as med_tool
+    from app.tools import patient as patient_tool
+    from app.tools import pubmed as pubmed_tool
+    from app.tools import vitals as vitals_tool
+
+    openemr = OpenEMRClient(settings)
+    drug = DrugInteractionClient(timeout=settings.tool_timeout_seconds)
+    icd10 = ICD10Client(timeout=settings.tool_timeout_seconds)
+    pubmed = PubMedClient(
+        api_key=settings.pubmed_api_key,
+        timeout=settings.tool_timeout_seconds,
+    )
+
+    try:
+        await openemr.authenticate()
+        logger.info("OpenEMR OAuth2 authentication successful")
+    except Exception as e:
+        logger.warning("OpenEMR auth failed (tools will return errors): %s", e)
+
+    patient_tool.set_client(openemr)
+    labs_tool.set_client(openemr)
+    med_tool.set_clients(openemr, drug)
+    icd10_tool.set_client(icd10)
+    pubmed_tool.set_client(pubmed)
+    appointments_tool.set_client(openemr)
+    vitals_tool.set_client(openemr)
+    allergies_tool.set_client(openemr)
+
+
 async def main() -> None:
     """Run the full evaluation pipeline."""
     from app.agent.graph import build_graph
@@ -203,6 +243,9 @@ async def main() -> None:
 
     # Optionally upload to LangSmith
     upload_to_langsmith(dataset)
+
+    # Initialize tool clients
+    await _init_clients()
 
     # Build agent graph
     model = get_primary_model(settings)

@@ -1,4 +1,4 @@
-"""Drug interaction client using RxNorm (for RxCUI lookup) and NLM interaction API."""
+"""Drug interaction client using RxNorm (name resolution) and OpenFDA (interactions)."""
 
 import logging
 from typing import Any
@@ -8,7 +8,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 RXNORM_BASE = "https://rxnav.nlm.nih.gov/REST"
-INTERACTION_BASE = "https://rxnav.nlm.nih.gov/REST/interaction"
+OPENFDA_BASE = "https://api.fda.gov/drug/label.json"
 
 
 class DrugInteractionClient:
@@ -219,55 +219,69 @@ class DrugInteractionClient:
         return ingredients
 
     # ------------------------------------------------------------------
-    # Interaction checking
+    # Interaction checking via OpenFDA drug labels
     # ------------------------------------------------------------------
 
-    async def check_interactions(self, rxcui: str) -> list[dict[str, Any]]:
-        """Get known drug interactions for a given RxCUI."""
+    async def _get_drug_label_interactions(
+        self, drug_name: str
+    ) -> str:
+        """Fetch drug_interactions text from OpenFDA label for a drug."""
         resp = await self.http.get(
-            f"{INTERACTION_BASE}/interaction.json",
-            params={"rxcui": rxcui},
+            OPENFDA_BASE,
+            params={
+                "search": f'openfda.generic_name:"{drug_name}"',
+                "limit": 1,
+            },
         )
+        if resp.status_code == 404:
+            return ""
         resp.raise_for_status()
         data = resp.json()
-        results: list[dict[str, Any]] = []
-        for group in data.get("interactionTypeGroup", []):
-            for itype in group.get("interactionType", []):
-                for pair in itype.get("interactionPair", []):
-                    results.append({
-                        "severity": pair.get("severity", "N/A"),
-                        "description": pair.get("description", ""),
-                        "drugs": [
-                            c.get("minConceptItem", {}).get("name", "")
-                            for c in pair.get("interactionConcept", [])
-                        ],
-                    })
-        return results
+        results = data.get("results", [])
+        if not results:
+            return ""
+        label = results[0]
+        interactions = label.get("drug_interactions", [])
+        if interactions:
+            return " ".join(interactions)
+        # Fallback: check warnings for interaction mentions
+        warnings = label.get("warnings_and_cautions", [])
+        if warnings:
+            return " ".join(warnings)
+        return ""
 
     async def check_multi_interactions(
-        self, rxcuis: list[str]
+        self, rxcuis: list[str], drug_names: list[str] | None = None
     ) -> list[dict[str, Any]]:
-        """Check interactions between multiple drugs (by RxCUI list)."""
-        if len(rxcuis) < 2:
+        """Check interactions between drugs using OpenFDA label data.
+
+        Uses drug_names (not RxCUIs) to search OpenFDA labels, since
+        OpenFDA's generic_name search is more reliable than RxCUI search.
+        """
+        if not drug_names or len(drug_names) < 2:
             return []
-        resp = await self.http.get(
-            f"{INTERACTION_BASE}/list.json",
-            params={"rxcuis": "+".join(rxcuis)},
-        )
-        resp.raise_for_status()
-        data = resp.json()
+
         results: list[dict[str, Any]] = []
-        for group in data.get("fullInteractionTypeGroup", []):
-            for itype in group.get("fullInteractionType", []):
-                for pair in itype.get("interactionPair", []):
+        name_set = {n.lower() for n in drug_names}
+
+        for name in drug_names:
+            interaction_text = await self._get_drug_label_interactions(name)
+            if not interaction_text:
+                continue
+            # Check if any of the OTHER drugs are mentioned
+            text_lower = interaction_text.lower()
+            for other in drug_names:
+                if other.lower() == name.lower():
+                    continue
+                if other.lower() in text_lower:
                     results.append({
-                        "severity": pair.get("severity", "N/A"),
-                        "description": pair.get("description", ""),
-                        "drugs": [
-                            c.get("minConceptItem", {}).get("name", "")
-                            for c in pair.get("interactionConcept", [])
-                        ],
+                        "severity": "N/A",
+                        "description": interaction_text[:500],
+                        "drugs": [name, other],
+                        "source": "OpenFDA drug label",
                     })
+                    break  # One match per drug is enough
+
         return results
 
     async def check_interactions_by_names(
@@ -294,10 +308,15 @@ class DrugInteractionClient:
             else:
                 unresolved.append(name)
 
-        # Check interactions with resolved drugs
+        # Check interactions via OpenFDA labels using resolved names
+        resolved_names = [
+            resolutions[n]["name"] for n in drug_names if resolutions[n]["rxcui"]
+        ]
         interactions: list[dict[str, Any]] = []
-        if len(rxcuis) >= 2:
-            interactions = await self.check_multi_interactions(rxcuis)
+        if len(resolved_names) >= 2:
+            interactions = await self.check_multi_interactions(
+                rxcuis, drug_names=resolved_names
+            )
 
         check_complete = len(unresolved) == 0
         warning = None
