@@ -1,5 +1,6 @@
 """Detailed allergy information LangChain tool."""
 
+import re
 from typing import Any
 
 from langchain_core.tools import tool
@@ -37,10 +38,23 @@ async def get_allergies_detailed(patient_uuid: str) -> dict[str, Any]:
     for entry in entries:
         resource = entry.get("resource", {})
         code_obj = resource.get("code", {})
-        # Robust substance extraction: try code.text, then iterate codings
+        # Robust substance extraction — OpenEMR populates different fields
+        # depending on whether a coded diagnosis was selected:
+        #   With code: code.coding[].display  (actual drug/allergen name)
+        #   Free text only: text.div  (HTML narrative from lists.title)
+        # When no coded diagnosis exists OpenEMR sets code.coding to a
+        # FHIR data-absent-reason with display="Unknown" — skip those.
         substance = code_obj.get("text", "")
         if not substance:
+            # text.div is the most reliable source — OpenEMR always
+            # populates it from lists.title regardless of coding.
+            text_div = resource.get("text", {}).get("div", "")
+            if text_div:
+                substance = re.sub(r"<[^>]+>", "", text_div).strip()
+        if not substance:
             for coding in code_obj.get("coding", []):
+                if "data-absent-reason" in coding.get("system", ""):
+                    continue
                 substance = coding.get("display", "") or coding.get("code", "")
                 if substance:
                     break

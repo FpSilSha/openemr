@@ -49,7 +49,8 @@ export default function ApprovalModal({
         }
     };
 
-    const draft = (pendingAction.draft as string) || JSON.stringify(pendingAction, null, 2);
+    const rawDraft = pendingAction.draft;
+    const draft = typeof rawDraft === 'string' ? rawDraft : JSON.stringify(rawDraft ?? pendingAction, null, 2);
     const noteType = (pendingAction.note_type as string) || 'clinical note';
 
     return (

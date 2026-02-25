@@ -85,11 +85,15 @@ def _build_secure_tool_node(tool_node: ToolNode):
     """Wrap ToolNode to enforce session-bound patient_uuid."""
 
     async def secure_tool_node(state: AgentState) -> dict[str, Any]:
-        """Override patient_uuid in tool args with session-bound value."""
+        """Override patient_uuid in tool args with session-bound value.
+
+        Also rejects patient-scoped tool calls when no patient UUID is set.
+        """
         patient_ctx = state.get("patient_context")
+        last = state["messages"][-1]
+
         if patient_ctx and patient_ctx.get("uuid"):
             session_uuid = patient_ctx["uuid"]
-            last = state["messages"][-1]
             if isinstance(last, AIMessage) and last.tool_calls:
                 # Deep copy to avoid mutating the original message
                 patched = copy.deepcopy(state)
