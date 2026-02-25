@@ -5,10 +5,7 @@ export const metadata: Metadata = {
     title: 'AgentForge OpenEMR',
     description: 'Clinical AI Assistant for OpenEMR',
     icons: {
-        icon: [
-            { url: '/favicon.png', type: 'image/png' },
-            { url: '/icon.svg', type: 'image/svg+xml' },
-        ],
+        icon: { url: '/icon.svg', type: 'image/svg+xml' },
     },
 };
 

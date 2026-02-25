@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
@@ -202,7 +202,7 @@ def build_graph(
 
         attempts = state.get("verification_attempts", 0) + 1
         return {
-            "messages": [SystemMessage(content=feedback)],
+            "messages": [HumanMessage(content=f"[VERIFICATION FEEDBACK]\n{feedback}")],
             "verification_attempts": attempts,
         }
 

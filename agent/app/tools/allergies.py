@@ -37,7 +37,17 @@ async def get_allergies_detailed(patient_uuid: str) -> dict[str, Any]:
     for entry in entries:
         resource = entry.get("resource", {})
         code_obj = resource.get("code", {})
-        substance = code_obj.get("text", code_obj.get("coding", [{}])[0].get("display", ""))
+        # Robust substance extraction: try code.text, then iterate codings
+        substance = code_obj.get("text", "")
+        if not substance:
+            for coding in code_obj.get("coding", []):
+                substance = coding.get("display", "") or coding.get("code", "")
+                if substance:
+                    break
+        if not substance:
+            substance = resource.get("note", [{}])[0].get("text", "") if resource.get("note") else ""
+        if not substance:
+            substance = "Not specified"
 
         # Parse reactions
         reactions = []
@@ -45,9 +55,13 @@ async def get_allergies_detailed(patient_uuid: str) -> dict[str, Any]:
             manifestations = reaction.get("manifestation", [])
             manifestation_text = ""
             if manifestations:
-                manifestation_text = manifestations[0].get(
-                    "text", manifestations[0].get("coding", [{}])[0].get("display", "")
-                )
+                m = manifestations[0]
+                manifestation_text = m.get("text", "")
+                if not manifestation_text:
+                    for coding in m.get("coding", []):
+                        manifestation_text = coding.get("display", "") or coding.get("code", "")
+                        if manifestation_text:
+                            break
             reactions.append({
                 "manifestation": manifestation_text,
                 "severity": reaction.get("severity", ""),
