@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ApprovalModal from './ApprovalModal';
 import ChatInput from './ChatInput';
+import ExpirationNotice from './ExpirationNotice';
 import MessageBubble from './MessageBubble';
 import PatientContext from './PatientContext';
 
@@ -23,11 +25,13 @@ export default function ChatWindow() {
     const [patientUuid, setPatientUuid] = useState('');
     const [loading, setLoading] = useState(false);
     const [conversationId, setConversationId] = useState<string | null>(null);
+    const [pendingApproval, setPendingApproval] = useState(false);
+    const [pendingAction, setPendingAction] = useState<Record<string, unknown> | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    }, [messages, pendingApproval]);
 
     const sendMessage = async (text: string) => {
         const userMsg: Message = { role: 'user', content: text };
@@ -52,12 +56,24 @@ export default function ChatWindow() {
             const data = await res.json();
             setConversationId(data.conversation_id);
 
-            const assistantMsg: Message = {
-                role: 'assistant',
-                content: data.response,
-                toolCalls: data.tool_calls,
-            };
-            setMessages((prev) => [...prev, assistantMsg]);
+            if (data.pending_approval && data.pending_action) {
+                setPendingApproval(true);
+                setPendingAction(data.pending_action);
+                // Add a status message so the user knows what happened
+                const statusMsg: Message = {
+                    role: 'assistant',
+                    content: data.response || 'A draft has been created and requires your review before it can be saved.',
+                    toolCalls: data.tool_calls,
+                };
+                setMessages((prev) => [...prev, statusMsg]);
+            } else {
+                const assistantMsg: Message = {
+                    role: 'assistant',
+                    content: data.response,
+                    toolCalls: data.tool_calls,
+                };
+                setMessages((prev) => [...prev, assistantMsg]);
+            }
         } catch (err) {
             const errorMsg: Message = {
                 role: 'assistant',
@@ -66,6 +82,34 @@ export default function ChatWindow() {
             setMessages((prev) => [...prev, errorMsg]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleApprovalResult = (result: { status: string; response: string }) => {
+        setPendingApproval(false);
+        setPendingAction(null);
+
+        if (result.status === 'expired') {
+            setMessages((prev) => [
+                ...prev,
+                { role: 'assistant', content: '' } as Message,
+            ]);
+            // We'll render ExpirationNotice inline — mark with a special flag
+            // by using a sentinel content value
+            setMessages((prev) => {
+                const updated = [...prev];
+                updated[updated.length - 1] = {
+                    role: 'assistant',
+                    content: '__EXPIRED__',
+                };
+                return updated;
+            });
+        } else {
+            const msg: Message = {
+                role: 'assistant',
+                content: result.response || `Action ${result.status}.`,
+            };
+            setMessages((prev) => [...prev, msg]);
         }
     };
 
@@ -87,14 +131,26 @@ export default function ChatWindow() {
                         </p>
                     </div>
                 )}
-                {messages.map((msg, i) => (
-                    <MessageBubble
-                        key={i}
-                        role={msg.role}
-                        content={msg.content}
-                        toolCalls={msg.toolCalls}
+                {messages.map((msg, i) =>
+                    msg.content === '__EXPIRED__' ? (
+                        <ExpirationNotice key={i} />
+                    ) : (
+                        <MessageBubble
+                            key={i}
+                            role={msg.role}
+                            content={msg.content}
+                            toolCalls={msg.toolCalls}
+                        />
+                    )
+                )}
+                {pendingApproval && pendingAction && conversationId && (
+                    <ApprovalModal
+                        pendingAction={pendingAction}
+                        conversationId={conversationId}
+                        agentUrl={AGENT_URL}
+                        onResult={handleApprovalResult}
                     />
-                ))}
+                )}
                 {loading && (
                     <div className="flex justify-start mb-3">
                         <div className="bg-white border border-gray-200 rounded-lg px-4 py-2 text-gray-400 text-sm">
@@ -105,7 +161,7 @@ export default function ChatWindow() {
                 <div ref={messagesEndRef} />
             </div>
 
-            <ChatInput onSend={sendMessage} disabled={loading} />
+            <ChatInput onSend={sendMessage} disabled={loading || pendingApproval} />
         </div>
     );
 }

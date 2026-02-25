@@ -165,36 +165,81 @@ async def test_get_medications_client_error_returns_structured_error(mock_drug_c
 
 
 # ---------------------------------------------------------------------------
-# drug_interaction_check — happy paths
+# drug_interaction_check — happy paths (uses tiered resolution via client)
 # ---------------------------------------------------------------------------
 
 
+def _make_tiered_drug_mock(resolutions, interactions=None):
+    """Build a mock DrugInteractionClient with check_interactions_by_names."""
+    drug_mock = AsyncMock()
+    drug_mock.check_interactions_by_names.return_value = {
+        "interactions": interactions or [],
+        "resolutions": resolutions,
+        "unresolved": [
+            name for name, r in resolutions.items() if r.get("rxcui") is None
+        ],
+        "check_complete": all(
+            r.get("rxcui") is not None for r in resolutions.values()
+        ),
+        "warning": None
+        if all(r.get("rxcui") is not None for r in resolutions.values())
+        else "WARNING: Could not resolve some drugs.",
+    }
+    return drug_mock
+
+
 @pytest.mark.asyncio
-async def test_drug_interaction_check_known_pair_with_interactions(
-    mock_openemr_client, mock_drug_client
-):
+async def test_drug_interaction_check_known_pair_with_interactions(mock_openemr_client):
     """aspirin + warfarin are both resolved and a high-severity interaction is returned."""
-    set_clients(mock_openemr_client, mock_drug_client)
+    drug_mock = _make_tiered_drug_mock(
+        resolutions={
+            "aspirin": {
+                "rxcui": "1191", "name": "aspirin",
+                "resolution_tier": 1, "confidence": 1.0, "ambiguous": False,
+                "original_name": "aspirin", "candidates": [],
+            },
+            "warfarin": {
+                "rxcui": "11289", "name": "warfarin",
+                "resolution_tier": 1, "confidence": 1.0, "ambiguous": False,
+                "original_name": "warfarin", "candidates": [],
+            },
+        },
+        interactions=[
+            {"severity": "high", "description": "Increased bleeding risk",
+             "drugs": ["aspirin", "warfarin"]},
+        ],
+    )
+    set_clients(mock_openemr_client, drug_mock)
 
     result = await drug_interaction_check.ainvoke({"drug_names": ["aspirin", "warfarin"]})
 
     assert result["status"] == "success"
     data = result["data"]
-    assert data["resolved_drugs"] == {"aspirin": "1191", "warfarin": "11289"}
+    assert data["resolved_drugs"]["aspirin"]["rxcui"] == "1191"
+    assert data["resolved_drugs"]["warfarin"]["rxcui"] == "11289"
+    assert data["check_complete"] is True
     assert len(data["interactions"]) == 1
     assert data["interactions"][0]["severity"] == "high"
 
 
 @pytest.mark.asyncio
 async def test_drug_interaction_check_safe_pair_no_interactions(mock_openemr_client):
-    """metformin + lisinopril resolve but check_multi_interactions returns no interactions."""
-    drug_mock = AsyncMock()
-    drug_mock.get_rxcui.side_effect = lambda name: {
-        "metformin": "6809",
-        "lisinopril": "29046",
-    }.get(name.lower())
-    drug_mock.check_multi_interactions.return_value = []
-
+    """metformin + lisinopril resolve but no interactions found."""
+    drug_mock = _make_tiered_drug_mock(
+        resolutions={
+            "metformin": {
+                "rxcui": "6809", "name": "metformin",
+                "resolution_tier": 1, "confidence": 1.0, "ambiguous": False,
+                "original_name": "metformin", "candidates": [],
+            },
+            "lisinopril": {
+                "rxcui": "29046", "name": "lisinopril",
+                "resolution_tier": 1, "confidence": 1.0, "ambiguous": False,
+                "original_name": "lisinopril", "candidates": [],
+            },
+        },
+        interactions=[],
+    )
     set_clients(mock_openemr_client, drug_mock)
 
     result = await drug_interaction_check.ainvoke({"drug_names": ["metformin", "lisinopril"]})
@@ -203,23 +248,35 @@ async def test_drug_interaction_check_safe_pair_no_interactions(mock_openemr_cli
     assert result["data"]["interactions"] == []
     assert "metformin" in result["data"]["resolved_drugs"]
     assert "lisinopril" in result["data"]["resolved_drugs"]
+    assert result["data"]["check_complete"] is True
 
 
 @pytest.mark.asyncio
 async def test_drug_interaction_check_mix_resolved_and_unresolved(mock_openemr_client):
-    """One known drug and one unknown; only the known one resolves, so <2 RxCUIs → note."""
-    drug_mock = AsyncMock()
-    drug_mock.get_rxcui.side_effect = lambda name: {"aspirin": "1191"}.get(name.lower())
-
+    """One known drug and one unknown → warning present, check_complete False."""
+    drug_mock = _make_tiered_drug_mock(
+        resolutions={
+            "aspirin": {
+                "rxcui": "1191", "name": "aspirin",
+                "resolution_tier": 1, "confidence": 1.0, "ambiguous": False,
+                "original_name": "aspirin", "candidates": [],
+            },
+            "unknowndrug": {
+                "rxcui": None, "name": "unknowndrug",
+                "resolution_tier": 4, "confidence": 0.0, "ambiguous": False,
+                "original_name": "unknowndrug", "candidates": [],
+            },
+        },
+    )
     set_clients(mock_openemr_client, drug_mock)
 
     result = await drug_interaction_check.ainvoke({"drug_names": ["aspirin", "unknowndrug"]})
 
     assert result["status"] == "success"
     data = result["data"]
-    assert data["interactions"] == []
-    assert "Need at least 2" in data["note"]
-    assert data["resolved"] == {"aspirin": "1191"}
+    assert data["check_complete"] is False
+    assert "unknowndrug" in data["unresolved"]
+    assert "warning" in data
 
 
 @pytest.mark.asyncio
@@ -235,18 +292,31 @@ async def test_drug_interaction_check_single_drug(mock_openemr_client, mock_drug
 
 
 @pytest.mark.asyncio
-async def test_drug_interaction_check_all_unresolved(mock_openemr_client, mock_drug_client):
-    """All unrecognised drug names resolve to None; no interaction check is performed."""
-    set_clients(mock_openemr_client, mock_drug_client)
+async def test_drug_interaction_check_all_unresolved(mock_openemr_client):
+    """All unrecognised drug names → warning, check_complete False."""
+    drug_mock = _make_tiered_drug_mock(
+        resolutions={
+            "fakedrug1": {
+                "rxcui": None, "name": "fakedrug1",
+                "resolution_tier": 4, "confidence": 0.0, "ambiguous": False,
+                "original_name": "fakedrug1", "candidates": [],
+            },
+            "fakedrug2": {
+                "rxcui": None, "name": "fakedrug2",
+                "resolution_tier": 4, "confidence": 0.0, "ambiguous": False,
+                "original_name": "fakedrug2", "candidates": [],
+            },
+        },
+    )
+    set_clients(mock_openemr_client, drug_mock)
 
     result = await drug_interaction_check.ainvoke({"drug_names": ["fakedrug1", "fakedrug2"]})
 
     assert result["status"] == "success"
     data = result["data"]
     assert data["interactions"] == []
-    assert "Need at least 2" in data["note"]
-    assert data["resolved"] == {}
-    mock_drug_client.check_multi_interactions.assert_not_called()
+    assert data["check_complete"] is False
+    assert len(data["unresolved"]) == 2
 
 
 @pytest.mark.asyncio
@@ -260,7 +330,6 @@ async def test_drug_interaction_check_empty_list(mock_openemr_client, mock_drug_
     data = result["data"]
     assert data["interactions"] == []
     assert "Need at least 2" in data["note"]
-    mock_drug_client.check_multi_interactions.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -270,9 +339,11 @@ async def test_drug_interaction_check_empty_list(mock_openemr_client, mock_drug_
 
 @pytest.mark.asyncio
 async def test_drug_interaction_check_client_error_returns_structured_error(mock_openemr_client):
-    """When the drug client raises on get_rxcui, the error handler captures it."""
+    """When the drug client raises on check_interactions_by_names, error handler captures it."""
     drug_mock = AsyncMock()
-    drug_mock.get_rxcui.side_effect = ConnectionError("RxNorm API unreachable")
+    drug_mock.check_interactions_by_names.side_effect = ConnectionError(
+        "RxNorm API unreachable"
+    )
 
     set_clients(mock_openemr_client, drug_mock)
 

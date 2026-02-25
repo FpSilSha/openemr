@@ -1,6 +1,7 @@
 """AgentForge FastAPI application with lifespan-managed clients and agent graph."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -15,6 +16,8 @@ from app.clients.pubmed_client import PubMedClient
 from app.config import settings
 from app.middleware.audit_logger import AuditLogMiddleware
 from app.middleware.cost_tracker import CostTrackerMiddleware
+from app.persistence.store import SessionStore, get_checkpointer
+from app.routes.approve import router as approve_router
 from app.routes.chat import router as chat_router
 from app.routes.feedback import router as feedback_router
 from app.routes.health import router as health_router
@@ -43,6 +46,15 @@ async def lifespan(app: FastAPI):
         timeout=settings.tool_timeout_seconds,
     )
 
+    # Initialize persistence (SQLite for sessions + LangGraph state)
+    db_path = os.environ.get("AGENT_DB_PATH", "/app/data/agent_state.db")
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    session_store = SessionStore(db_path)
+    await session_store.init_db()
+    checkpointer = await get_checkpointer(db_path)
+    app.state.session_store = session_store
+    logger.info("SQLite persistence initialized at %s", db_path)
+
     # Authenticate with OpenEMR (OAuth2 registration + token)
     try:
         await openemr.authenticate()
@@ -60,16 +72,19 @@ async def lifespan(app: FastAPI):
     vitals_tool.set_client(openemr)
     allergies_tool.set_client(openemr)
 
-    # Build agent graph with verification model
+    # Build agent graph with verification model and checkpointer
     model = get_primary_model(settings)
     verify_model = get_verification_model(settings)
-    graph = build_graph(model, verification_model=verify_model)
+    graph = build_graph(
+        model, verification_model=verify_model, checkpointer=checkpointer
+    )
     app.state.agent_graph = graph
 
     logger.info("AgentForge started — tools and agent graph ready")
     yield
 
     # Cleanup
+    await session_store.close()
     await openemr.close()
     await drug.close()
     await icd10.close()
@@ -91,4 +106,5 @@ app.add_middleware(AuditLogMiddleware)
 
 app.include_router(health_router)
 app.include_router(chat_router)
+app.include_router(approve_router)
 app.include_router(feedback_router)

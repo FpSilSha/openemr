@@ -60,33 +60,47 @@ async def get_medications(patient_uuid: str) -> dict[str, Any]:
 async def drug_interaction_check(drug_names: list[str]) -> dict[str, Any]:
     """Check for known drug-drug interactions between a list of medications.
 
+    Uses 4-tier drug name resolution (exact -> approximate -> brand -> unresolved)
+    with ingredient-level normalization for maximum accuracy. If any drug cannot
+    be resolved, a prominent warning is included.
+
     Args:
         drug_names: List of drug names to check for interactions (e.g. ["aspirin", "warfarin"]).
     """
     client = _get_drug()
-    rxcuis = []
-    resolved = {}
-    for name in drug_names:
-        rxcui = await client.get_rxcui(name)
-        if rxcui:
-            rxcuis.append(rxcui)
-            resolved[name] = rxcui
 
-    if len(rxcuis) < 2:
+    if len(drug_names) < 2:
         return {
             "status": "success",
             "data": {
                 "interactions": [],
                 "note": "Need at least 2 resolved drugs to check interactions.",
-                "resolved": resolved,
+                "resolved": {},
+                "check_complete": True,
             },
         }
 
-    interactions = await client.check_multi_interactions(rxcuis)
-    return {
-        "status": "success",
-        "data": {
-            "interactions": interactions,
-            "resolved_drugs": resolved,
-        },
+    result = await client.check_interactions_by_names(drug_names)
+
+    # Build per-drug resolution summary for the LLM
+    resolved_drugs: dict[str, Any] = {}
+    for name, res in result["resolutions"].items():
+        resolved_drugs[name] = {
+            "rxcui": res["rxcui"],
+            "resolved_name": res["name"],
+            "tier": res["resolution_tier"],
+            "confidence": res["confidence"],
+            "ambiguous": res.get("ambiguous", False),
+        }
+
+    data: dict[str, Any] = {
+        "interactions": result["interactions"],
+        "resolved_drugs": resolved_drugs,
+        "unresolved": result["unresolved"],
+        "check_complete": result["check_complete"],
     }
+
+    if result["warning"]:
+        data["warning"] = result["warning"]
+
+    return {"status": "success", "data": data}

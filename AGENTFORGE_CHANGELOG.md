@@ -5,6 +5,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Phase 3b] - 2026-02-24
+
+HITL State Machine, Tiered Drug Resolution & Fixture Export
+
+### Added
+- SQLite persistence for sessions and LangGraph state — conversations survive container restarts ([c78dd108](https://github.com/FpSilSha/openemr/commit/c78dd108a))
+- `SessionStore` class with `init_db()`, `get_session()`, `upsert_session()`, `list_pending()` backed by SQLite ([c78dd108](https://github.com/FpSilSha/openemr/commit/c78dd108a))
+- `get_checkpointer()` returns `AsyncSqliteSaver` for LangGraph state persistence ([c78dd108](https://github.com/FpSilSha/openemr/commit/c78dd108a))
+- HITL `approval_gate` node with `interrupt_before` — graph pauses when write tools return `requires_human_confirmation` ([bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8))
+- `POST /approve` endpoint — resume or reject paused workflows with 24h TTL for patient safety ([bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8))
+- `GET /pending` endpoint — list all conversations awaiting clinician approval ([bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8))
+- `_needs_approval` edge function and `_WRITE_TOOLS` set for HITL routing ([bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8))
+- `ApprovalModal` component — displays draft, approve/reject buttons, clinician note field ([a5f6c549](https://github.com/FpSilSha/openemr/commit/a5f6c5492))
+- `ExpirationNotice` component — amber warning for expired drafts (24h TTL) ([a5f6c549](https://github.com/FpSilSha/openemr/commit/a5f6c5492))
+- 4-tier drug name resolution: exact → approximate → brand/synonym → unresolved ([6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f))
+- Ingredient-level normalization via `/rxcui/{rxcui}/related.json?tty=IN` — different strengths resolve to same ingredient ([6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f))
+- `resolve_drug_name()`, `get_approximate_match()`, `get_ingredient_rxcui()`, `get_drugs_by_name()`, `check_interactions_by_names()` on `DrugInteractionClient` ([6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f))
+- `check_complete` flag and `warning` string in drug interaction results — LLM warned when drugs unresolved ([6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f))
+- `export_fixtures.py` script — exports all patient clinical data to `tests/fixtures/demo_data.json` with versioning ([dc970fc2](https://github.com/FpSilSha/openemr/commit/dc970fc2d))
+- UUID mapping file for eval placeholder resolution ([dc970fc2](https://github.com/FpSilSha/openemr/commit/dc970fc2d))
+- 10 persistence tests, 18 HITL tests, 12 tiered resolution tests, 7 fixture loading tests — total: ~196 unit tests ([c78dd108](https://github.com/FpSilSha/openemr/commit/c78dd108a), [bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8), [6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f), [dc970fc2](https://github.com/FpSilSha/openemr/commit/dc970fc2d))
+
+### Changed
+- Sessions: in-memory dict → SQLite-backed `SessionStore` (in-memory fallback for tests) ([c78dd108](https://github.com/FpSilSha/openemr/commit/c78dd108a))
+- Graph flow: `reason → tools → reason → verify → END` → `reason → tools → [needs_approval?] → approval_gate (interrupt) → reason → verify → END` ([bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8))
+- `ChatResponse` now includes `pending_approval` and `pending_action` fields ([bcf5338a](https://github.com/FpSilSha/openemr/commit/bcf5338a8))
+- `ChatWindow` disables input during approval review, integrates ApprovalModal and ExpirationNotice ([a5f6c549](https://github.com/FpSilSha/openemr/commit/a5f6c5492))
+- Drug resolution: exact-match only → 4-tier with confidence scores and ambiguity detection ([6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f))
+- `drug_interaction_check` tool response now includes per-drug resolution metadata (tier, confidence, ambiguous flag) ([6d9c57c5](https://github.com/FpSilSha/openemr/commit/6d9c57c5f))
+- `mock_drug_client` fixture updated with `check_interactions_by_names` for tiered resolution API ([43fb16e9](https://github.com/FpSilSha/openemr/commit/43fb16e93))
+- `docker-compose.agent.yml` adds `agent_data` volume at `/app/data` for SQLite DB ([c78dd108](https://github.com/FpSilSha/openemr/commit/c78dd108a))
+- Total unit tests: 155 → 196 (5 skipped when fixtures not exported)
+
+### Notes
+- Actual write-to-OpenEMR after approval is deferred — no clinical notes FHIR write endpoint in OpenEMR 7.x; `approval_gate` is the interrupt point only
+- `langgraph-checkpoint-sqlite` and `aiosqlite` added as dependencies
+- Fixture tests skip gracefully when `tests/fixtures/demo_data.json` doesn't exist — run `export_fixtures.py` inside Docker to populate
+- 24h TTL on pending approvals enforced at the `/approve` endpoint, not in the graph itself
+
+---
+
 ## [Phase 3] - 2026-02-24
 
 Eval Framework, Verification Layer & Tool Expansion

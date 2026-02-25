@@ -1,13 +1,14 @@
-"""LangGraph agent graph — reason → tools → reason → verify loop."""
+"""LangGraph agent graph — reason → tools → reason → verify loop with HITL."""
 
 from __future__ import annotations
 
 import copy
+import json
 import logging
 from typing import Any
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
@@ -33,6 +34,9 @@ _PATIENT_SCOPED_TOOLS = {
     "create_clinical_note",
 }
 
+# Tools that require human approval before proceeding
+_WRITE_TOOLS = {"create_clinical_note"}
+
 
 def _should_use_tools(state: AgentState) -> str:
     """Edge function: route to tools if the last message has tool_calls."""
@@ -40,6 +44,25 @@ def _should_use_tools(state: AgentState) -> str:
     if hasattr(last, "tool_calls") and last.tool_calls:
         return "tools"
     return "verify"
+
+
+def _needs_approval(state: AgentState) -> str:
+    """Edge function: check if the last tool result requires human approval."""
+    for msg in reversed(state["messages"]):
+        if not isinstance(msg, ToolMessage):
+            break
+        # Check if the tool result contains requires_human_confirmation
+        content = msg.content
+        if isinstance(content, str):
+            try:
+                data = json.loads(content)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(data, dict):
+                inner = data.get("data", data)
+                if inner.get("requires_human_confirmation"):
+                    return "needs_approval"
+    return "no_approval"
 
 
 def _should_retry_or_end(state: AgentState) -> str:
@@ -94,10 +117,40 @@ def _build_secure_tool_node(tool_node: ToolNode):
     return secure_tool_node
 
 
+async def _approval_gate(state: AgentState) -> dict[str, Any]:
+    """Pause point for HITL approval. Graph interrupts BEFORE this node.
+
+    When the graph resumes after clinician approval, this node executes
+    and clears the pending state so the agent can acknowledge the decision.
+    """
+    # Extract the pending action from the last tool result
+    pending = None
+    for msg in reversed(state["messages"]):
+        if not isinstance(msg, ToolMessage):
+            break
+        content = msg.content
+        if isinstance(content, str):
+            try:
+                data = json.loads(content)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(data, dict) and data.get("data", {}).get(
+                "requires_human_confirmation"
+            ):
+                pending = data.get("data")
+                break
+
+    return {
+        "requires_human_confirmation": True,
+        "pending_action": pending,
+    }
+
+
 def build_graph(
     model: ChatAnthropic,
     tools: list | None = None,
     verification_model: ChatAnthropic | None = None,
+    checkpointer: Any | None = None,
 ) -> CompiledStateGraph:
     """Build the agent graph with the given model, tools, and verification.
 
@@ -105,6 +158,7 @@ def build_graph(
         model: ChatAnthropic model instance for primary reasoning.
         tools: List of LangChain tools to bind. Defaults to ALL_TOOLS.
         verification_model: Optional model for hallucination checks.
+        checkpointer: Optional LangGraph checkpointer for state persistence.
     """
     tool_list = tools if tools is not None else ALL_TOOLS
     model_with_tools = model.bind_tools(tool_list)
@@ -158,6 +212,7 @@ def build_graph(
     graph = StateGraph(AgentState)
     graph.add_node("reason", reason)
     graph.add_node("tools", secure_tools)
+    graph.add_node("approval_gate", _approval_gate)
     graph.add_node("verify", verify)
     graph.set_entry_point("reason")
     graph.add_conditional_edges(
@@ -165,11 +220,22 @@ def build_graph(
         _should_use_tools,
         {"tools": "tools", "verify": "verify"},
     )
-    graph.add_edge("tools", "reason")
+    graph.add_conditional_edges(
+        "tools",
+        _needs_approval,
+        {"needs_approval": "approval_gate", "no_approval": "reason"},
+    )
+    # After approval gate (resume), go back to reason to acknowledge
+    graph.add_edge("approval_gate", "reason")
     graph.add_conditional_edges(
         "verify",
         _should_retry_or_end,
         {"reason": "reason", END: END},
     )
 
-    return graph.compile()
+    compile_kwargs: dict[str, Any] = {}
+    if checkpointer is not None:
+        compile_kwargs["checkpointer"] = checkpointer
+        compile_kwargs["interrupt_before"] = ["approval_gate"]
+
+    return graph.compile(**compile_kwargs)

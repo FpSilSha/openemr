@@ -14,3 +14,5 @@ class AgentState(TypedDict):
     patient_uuid: str | None
     patient_context: dict | None
     verification_attempts: int
+    requires_human_confirmation: bool
+    pending_action: dict | None
